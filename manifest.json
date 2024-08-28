@@ -1,8 +1,8 @@
 {
     "manifest_version": 2,
     "name": "Manga Chapter Downloader | Skyfetch",
-    "version": "1.3",
-    "description": "Manga Chapter Downloader(Madara,Mangastream,Mangareader).",
+    "version": "1.6",
+    "description": "Manga Chapter Downloader(Madara,Mangastream,Mangareader ...).",
     "permissions": ["activeTab"],
     "background": {
       "scripts": ["background.js"],

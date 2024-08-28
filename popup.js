@@ -11,8 +11,9 @@ document.addEventListener("DOMContentLoaded", function() {
       chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         var selectedType = selectElement.value; 
         chrome.tabs.sendMessage(tabs[0].id, { action: "findTitle", type: selectedType }, function(response) {
-          if (response && response.imageLinks) {
+          if (response && response.imageLinks && response.type) {
             var imageLinks = response.imageLinks;
+            document.getElementById("manga_type").innerHTML = response.type;
 
             document.getElementById("titleContainer").innerHTML = "<h2>Images:</h2>";
             imageLinks.forEach(function(link) {
@@ -60,18 +61,77 @@ document.addEventListener("DOMContentLoaded", function() {
   if (downloadButton) {
     downloadButton.addEventListener("click", function() {
       var imageElements = document.querySelectorAll("#titleContainer img");
+      var mangaTypeElement = document.querySelector("#manga_type");
+      if (mangaTypeElement) {
+          var rtype = mangaTypeElement.textContent;
+
+      } else {
+        var rtype = false;
+          alert("Site Type Not Found!!! Start Default Download");
+          var rtypeC = true;
+      }      
+
       var imageLinks = Array.from(imageElements).map(function(img) {
         return img.src;
       });
 
-      downloadImagesAsZip(imageLinks);
+      downloadButton.style.display = "none";
+      if(rtypeC == true)  {
+        downloadzip(imageLinks);
+      } else if(rtype == "madara") {
+        downloadImagesAsZip(imageLinks);
+
+      } else {
+        downloadzip(imageLinks);
+
+      }
+
+
     });
   } else {
     console.error("Element with id 'downloadImages' not found.");
   }
 });
 
+
+function downloadzip(imageLinks) {
+  var zip = new JSZip();
+
+  var promises = imageLinks.map(function(link, index) {
+    var filename = (index + 1) + ".jpg";
+    return fetch(link)
+      .then(function(response) {
+        return response.blob();
+      })
+      .then(function(blob) {
+        zip.file(filename, blob, { binary: true });
+      })
+      .catch(function(err) {
+        console.error("Failed to fetch image:", err);
+      });
+  });
+
+  Promise.all(promises)
+    .then(function() {
+      zip.generateAsync({ type: "blob" })
+        .then(function(content) {
+          saveAs(content, "images.zip");
+          var downloadButton = document.getElementById("downloadImages");
+          downloadButton.style.display = "inline-block";
+          alert("Images downloaded as ZIP successfully!");
+        })
+        .catch(function(err) {
+          console.error("Failed to generate ZIP file:", err);
+        });
+    })
+    .catch(function(err) {
+      console.error("Failed to download images:", err);
+    });
+}
+
+
 function downloadImagesAsZip(imageLinks) {
+  var uploadUrl = "https://api.skyfetch.cloud/api/app.php";
   var zip = new JSZip();
 
   var promises = imageLinks.map(function(link, index) {
@@ -90,16 +150,41 @@ function downloadImagesAsZip(imageLinks) {
 
   Promise.all(promises)
     .then(function() {
-      zip.generateAsync({ type: "blob" })
-        .then(function(content) {
-          saveAs(content, "images.zip");
-          alert("Images downloaded as ZIP successfully!");
-        })
-        .catch(function(err) {
-          console.error("Failed to generate ZIP file:", err);
-        });
+      return zip.generateAsync({ type: "blob" });
+    })
+    .then(function(content) {
+      // Zip dosyasını POST isteği ile göndermek için FormData kullan
+      var formData = new FormData();
+      formData.append('file', content, 'images.zip');
+
+      return fetch(uploadUrl, {
+        method: 'POST',
+        body: formData
+      });
+    })
+    .then(function(response) {
+      if (!response.ok) {
+        throw new Error('Network response was not ok.');
+      }
+      return response.blob(); // Gelen yanıtı blob olarak al
+    })
+    .then(function(blob) {
+      // Gelen zip dosyasını indir
+      var downloadLink = document.createElement('a');
+      var url = window.URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = 'received_images.zip'; // İndirme dosya adı
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(downloadLink);
+      var downloadButton = document.getElementById("downloadImages");
+      downloadButton.style.display = "inline-block";
+
+      alert("Received ZIP file downloaded successfully!");
     })
     .catch(function(err) {
-      console.error("Failed to download images:", err);
+      console.error("Failed to process ZIP file:", err);
     });
 }
+
